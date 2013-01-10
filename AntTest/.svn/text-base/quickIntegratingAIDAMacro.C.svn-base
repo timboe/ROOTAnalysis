@@ -1,0 +1,90 @@
+void quickIntegratingAIDAMacro() {
+	f = new TFile("hists/Prague_Result_Export.root");
+	R = (TH1F*) f->Get("hDeltaEtaF_Pythia8");
+
+	EnD = (TH1F*) f->Get("hDeltaEtaF_SysEnDown_Pythia8");
+	EnU = (TH1F*) f->Get("hDeltaEtaF_SysEnUp_Pythia8");
+
+	McD = (TH1F*) f->Get("hDeltaEtaF_SysMCDown_Pythia8");
+	McU = (TH1F*) f->Get("hDeltaEtaF_SysMCUp_Pythia8");
+
+	ThD = (TH1F*) f->Get("hDeltaEtaF_SysThDown_Pythia8");
+	ThU = (TH1F*) f->Get("hDeltaEtaF_SysThUp_Pythia8");
+
+	double NOM=0, ED=0, EU=0, MD=0, MU=0, TD=0, TU=0;
+	for (int B=16; B<=35; B++) {
+		NOM += R->GetBinContent(B);
+
+		ED += EnD->GetBinContent(B);
+		EU += EnU->GetBinContent(B);
+
+		MD += McD->GetBinContent(B);
+		MU += McU->GetBinContent(B);
+
+		TD += ThD->GetBinContent(B);
+		TU += ThU->GetBinContent(B);
+
+
+	}
+	
+
+	cout<<endl;
+	cout<<endl<<"<?xml version=\"1.0\" encoding=\"utf-8\" ?>";
+	cout<<endl<<"<!DOCTYPE aida SYSTEM \"http://aida.freehep.org/schemas/3.3/aida.dtd\">";
+	cout<<endl<<"<aida version=\"3.3\">";
+	cout<<endl<<"  <implementation version=\"1.0\" package=\"HepData\"/>";
+	cout<<endl<<"  <dataPointSet name=\"d01-x01-y01\" dimension=\"2\" path=\"/REF/ATLAS_2011_DIFFRATIVEGAPS\" title=\"RapidityGapSize\" >";
+	for (int B=1; B<=R->GetNbinsX(); B++) {
+		double nom = R->GetBinContent(B);
+
+		double ed=0, eu=0, md=0, mu=0, td=0, tu=0, ld=0, lu=0;
+		ed += EnD->GetBinContent(B);
+		eu += EnU->GetBinContent(B);
+
+		md += McD->GetBinContent(B);
+		mu += McU->GetBinContent(B);
+
+		td += ThD->GetBinContent(B);
+		tu += ThU->GetBinContent(B);
+
+		ld += R->GetBinContent(B) * (1. - 0.034);
+		lu += R->GetBinContent(B) * (1. + 0.034);
+
+		double u = pow(nom-eu,2) + pow(nom-mu,2) + pow(nom-tu,2) + pow(nom-lu,2);
+		u = sqrt(u);
+	
+		double d = pow(nom-ed,2) + pow(nom-md,2) + pow(nom-td,2) + pow(nom-ld,2);
+		d = sqrt(d);
+
+		double x=R->GetBinCenter(B);
+		double y=nom*5;
+
+		double y_high = u*5;
+		double y_low = d*5;
+		double x_high = 0.1;
+		double x_low = 0.1;
+		cout<<endl<<"    <dataPoint>";
+		cout<<endl<<"      <measurement value=\""<<x<<"\" errorPlus=\""<<x_high<<"\" errorMinus=\""<<x_low<<"\"/>";
+		cout<<endl<<"      <measurement value=\""<<y<<"\" errorPlus=\""<<y_high<<"\" errorMinus=\""<<y_low<<"\"/>";
+		cout<<endl<<"    </dataPoint>";
+	}
+	cout<<endl<<"  </dataPointSet>";
+	cout<<endl<<"</aida>";
+	cout<<endl;
+
+	double nom=0,up=0,down=0;
+
+	up = pow(NOM-EU,2) + pow(NOM-MU,2) + pow(NOM-TU,2);
+	up = sqrt(up);
+
+	down = pow(NOM-ED,2) + pow(NOM-MD,2) + pow(NOM-TD,2);
+	down = sqrt(down);
+
+	nom = NOM;
+
+// 	up /= 5;
+// 	down /= 5;
+// 	nom /= 5;
+	
+	cout << "Integral: " << nom << " + "<< up << " - " << down;
+}

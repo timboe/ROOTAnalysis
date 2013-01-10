@@ -1,0 +1,271 @@
+#include <TROOT.h>
+#include <TSystem.h>
+#include <TBox.h>
+#include <TCanvas.h>
+#include <TChain.h>
+#include <TColor.h>
+#include <TFile.h>
+#include <TF1.h>
+#include <TGaxis.h>
+#include <TGraphAsymmErrors.h>
+#include <TH2.h>
+#include <TImage.h>
+#include <TLegend.h>
+#include <TLine.h>
+#include <TObject.h>
+#include <TStyle.h>
+#include <TString.h>
+#include <TPaveText.h>
+#include <TPaletteAxis.h>
+#include <TText.h>
+#include <iostream>
+#include <math.h>
+#include <string>
+#include <vector>
+#include "AtlasStyle.C"
+
+using namespace std;
+
+template <class Histogram>
+TGraphAsymmErrors* FormSystematics(Histogram h_DATA, vector<Histogram> HIGH, vector<Histogram> LOW) {
+	TGraphAsymmErrors* g_SYS= new TGraphAsymmErrors(h_DATA); //again, will be overwritten
+	if (HIGH.size() != LOW.size()) {
+		cout<<endl<<"Error, number of High and Low histograms do not match.";
+		return 0;
+	}
+	for (int i=1; i <= h_DATA->GetNbinsX() ; i++) {
+		double highSys=0, lowSys = 0;
+		for (unsigned int j=0; j < HIGH.size(); j++) {
+			highSys += pow((HIGH.at(j))->GetBinContent(i) - h_DATA->GetBinContent(i), 2);
+		}
+		highSys = sqrt(highSys);
+
+		for (unsigned int j=0; j < LOW.size(); j++) {
+			lowSys += pow(h_DATA->GetBinContent(i) - (LOW.at(j))->GetBinContent(i), 2);
+		}
+		lowSys = sqrt(lowSys);
+		g_SYS->SetPointError(i-1, 0., 0., highSys, lowSys); //points start from 0, hists start from 1
+	}
+	return g_SYS;
+}
+
+template <class Histogram>
+void DoRescaling(int binsToMerge, Histogram Hist) {
+	Hist->Rebin(binsToMerge);
+	Hist->Scale(1./(double)binsToMerge);
+}
+
+void CombinePlots() {
+	/// COMBINE RESULTS
+
+	bool log_on=true;
+	double Ymax = 500.; //mb
+	double Ymin = 0.2;
+	double Ymax_Ratio = 1.05;
+	double Ymin_Ratio = 0.90;
+	if (!log_on) { Ymax = 8.5; Ymin = 0.; }
+
+	TString fileName = "";
+	ResetAtlasStyle();
+	gStyle->SetMarkerSize(0.7);
+
+	TFile* f_Prague = TFile::Open("hists/Prague_Result_Export.root");
+	TFile* f_Bham   = TFile::Open("hists/Birmingham_Result_Export.root");
+
+	/// Get Main Histograms
+	
+	TH1F* h_Prague_DATA_CORRECTED = (TH1F*) f_Prague->Get("hDeltEtaF_Pythia8");
+	h_Prague_DATA_CORRECTED->SetTitle("Bays. Unfolded Data Prague");
+
+	TH1D* h_Bham_DATA_CORRECTED   = (TH1D*) f_Bham->Get("bham_DATA_Corrected_Bays");
+	h_Bham_DATA_CORRECTED->SetTitle("Bays. Unfolded Data Birmingham");
+
+	TH1D* h_Bham_DATA_UNCORRECTED   = (TH1D*) f_Bham->Get("bham_DATA_Uncorrected");
+	h_Bham_DATA_UNCORRECTED->SetTitle("U Data Birmingham");
+
+	TH1D* h_Bham_MC_PY8   = (TH1D*) f_Bham->Get("bham_MC_Pythia8");
+	h_Bham_MC_PY8->SetTitle("Pythia 8");
+
+	TH1D* h_Bham_MC_PY6   = (TH1D*) f_Bham->Get("bham_MC_Pythia6");
+	h_Bham_MC_PY6->SetTitle("Pythia 6");
+
+	TH1D* h_Bham_MC_PHO   = (TH1D*) f_Bham->Get("bham_MC_Phojet");
+	h_Bham_MC_PHO->SetTitle("Phojet");
+
+	TH1D* h_Bham_SYS_EScale_high = (TH1D*) f_Bham->Get("bham_SYS_EScale_high");
+	TH1D* h_Bham_SYS_MC_high = (TH1D*) f_Bham->Get("bham_SYS_MC_high");
+	TH1D* h_Bham_SYS_Threshold_high = (TH1D*) f_Bham->Get("bham_SYS_Threshold_high");
+
+	TH1D* h_Bham_SYS_EScale_low = (TH1D*) f_Bham->Get("bham_SYS_EScale_low");
+	TH1D* h_Bham_SYS_MC_low = (TH1D*) f_Bham->Get("bham_SYS_MC_low");
+	TH1D* h_Bham_SYS_Threshold_low = (TH1D*) f_Bham->Get("bham_SYS_Threshold_low");
+
+	TH1F* h_Prague_SYS_EScale_high = (TH1F*) f_Prague->Get("hDeltEtaF_SysEnUp_Pythia8");
+	TH1F* h_Prague_SYS_MC_A_high = (TH1F*) f_Prague->Get("hDeltaEtaF_SysMCUp_Pythia6");
+	TH1F* h_Prague_SYS_MC_B_high = (TH1F*) f_Prague->Get("hDeltaEtaF_SysMCUp_Phojet");
+	TH1F* h_Prague_SYS_Threshold_high = (TH1F*) f_Prague->Get("hDeltEtaF_SysThUp_Pythia8");
+
+	TH1F* h_Prague_SYS_EScale_low = (TH1F*) f_Prague->Get("hDeltEtaF_SysEnDown_Pythia8");
+	TH1F* h_Prague_SYS_MC_A_low = (TH1F*) f_Prague->Get("hDeltaEtaF_SysMCDown_Pythia6");
+	TH1F* h_Prague_SYS_MC_B_low = (TH1F*) f_Prague->Get("hDeltaEtaF_SysMCDown_Phojet");
+	TH1F* h_Prague_SYS_Threshold_low = (TH1F*) f_Prague->Get("hDeltEtaF_SysThDown_Pythia8");
+
+	/// Rescale
+
+	double aMax = h_Bham_DATA_CORRECTED->GetXaxis()->GetXmax();
+	double aMin = h_Bham_DATA_CORRECTED->GetXaxis()->GetXmin();
+	h_Prague_DATA_CORRECTED->GetXaxis()->SetRangeUser(aMin, aMax);
+
+	h_Prague_DATA_CORRECTED->Scale(5); //bit of a hack, hists should be divided by bin size
+	h_Prague_SYS_EScale_high->Scale(5);
+	h_Prague_SYS_MC_A_high->Scale(5);
+	h_Prague_SYS_MC_B_high->Scale(5);
+	h_Prague_SYS_Threshold_high->Scale(5);
+	h_Prague_SYS_EScale_low->Scale(5);
+	h_Prague_SYS_MC_A_low->Scale(5);
+	h_Prague_SYS_MC_B_low->Scale(5);
+	h_Prague_SYS_Threshold_low->Scale(5);
+
+	int PragueRescaleFactor = 3; //0.2 to 0.6
+	DoRescaling(PragueRescaleFactor,h_Prague_DATA_CORRECTED);
+	DoRescaling(PragueRescaleFactor,h_Prague_SYS_EScale_high);
+	DoRescaling(PragueRescaleFactor,h_Prague_SYS_MC_A_high);
+	DoRescaling(PragueRescaleFactor,h_Prague_SYS_MC_B_high);
+	DoRescaling(PragueRescaleFactor,h_Prague_SYS_Threshold_high);
+	DoRescaling(PragueRescaleFactor,h_Prague_SYS_EScale_low);
+	DoRescaling(PragueRescaleFactor,h_Prague_SYS_MC_A_low);
+	DoRescaling(PragueRescaleFactor,h_Prague_SYS_MC_B_low);
+	DoRescaling(PragueRescaleFactor,h_Prague_SYS_Threshold_low);
+
+	int BhamRescaleFactor = 6; //0.1 to 0.6
+	DoRescaling(BhamRescaleFactor,h_Bham_DATA_CORRECTED);
+	DoRescaling(BhamRescaleFactor,h_Bham_DATA_UNCORRECTED);
+	DoRescaling(BhamRescaleFactor,h_Bham_MC_PY6);
+	DoRescaling(BhamRescaleFactor,h_Bham_MC_PY8);
+	DoRescaling(BhamRescaleFactor,h_Bham_MC_PHO);
+	DoRescaling(BhamRescaleFactor,h_Bham_SYS_EScale_high);
+	DoRescaling(BhamRescaleFactor,h_Bham_SYS_Threshold_high);
+	DoRescaling(BhamRescaleFactor,h_Bham_SYS_MC_high);
+	DoRescaling(BhamRescaleFactor,h_Bham_SYS_EScale_low);
+	DoRescaling(BhamRescaleFactor,h_Bham_SYS_Threshold_low);
+	DoRescaling(BhamRescaleFactor,h_Bham_SYS_MC_low);
+
+	/// REBIN Prague by 1/2 a bin
+
+
+
+	/// Make Histograms for Systematics
+
+	vector<TH1D*> Bham_High_Sys;
+	Bham_High_Sys.push_back( h_Bham_SYS_EScale_high );
+	Bham_High_Sys.push_back( h_Bham_SYS_MC_high );
+	Bham_High_Sys.push_back( h_Bham_SYS_Threshold_high );
+	vector<TH1D*> Bham_Low_Sys;
+	Bham_Low_Sys.push_back( h_Bham_SYS_EScale_low );
+	Bham_Low_Sys.push_back( h_Bham_SYS_MC_low );
+	Bham_Low_Sys.push_back( h_Bham_SYS_Threshold_low );
+	TGraphAsymmErrors* g_Bham_Systematics = FormSystematics(h_Bham_DATA_CORRECTED, Bham_High_Sys, Bham_Low_Sys);
+
+	vector<TH1F*> Prague_High_Sys;
+	Prague_High_Sys.push_back( h_Prague_SYS_EScale_high );
+	Prague_High_Sys.push_back( h_Prague_SYS_MC_A_high );
+	Prague_High_Sys.push_back( h_Prague_SYS_MC_B_high );
+	Prague_High_Sys.push_back( h_Prague_SYS_Threshold_high );
+	vector<TH1F*> Prague_Low_Sys;
+	Prague_Low_Sys.push_back( h_Prague_SYS_EScale_low );
+	Prague_Low_Sys.push_back( h_Prague_SYS_MC_A_low );
+	Prague_Low_Sys.push_back( h_Prague_SYS_MC_B_low );
+	Prague_Low_Sys.push_back( h_Prague_SYS_Threshold_low );
+	TGraphAsymmErrors* g_Prague_Systematics = FormSystematics(h_Prague_DATA_CORRECTED, Prague_High_Sys, Prague_Low_Sys);
+
+	/// Form Ratio of Bham Prague Results
+
+	std::cout<<std::endl<<"N Bins Prague:"<<h_Prague_DATA_CORRECTED->GetNbinsX()<<std::flush;
+	std::cout<<std::endl<<"N Bins Bham  :"<<h_Bham_DATA_CORRECTED->GetNbinsX()<<std::flush;
+
+	TH1D* h_Ratio_DATA_CORRECTED = (TH1D*) h_Bham_DATA_CORRECTED->Clone();
+	for (unsigned int i=1; i <= h_Ratio_DATA_CORRECTED->GetNbinsX(); i++) {
+		double R = h_Bham_DATA_CORRECTED->GetBinContent(i) / h_Prague_DATA_CORRECTED->GetBinContent(i);
+		h_Ratio_DATA_CORRECTED->SetBinContent(i,R);
+	}
+	
+
+	/// Colours
+
+	h_Prague_DATA_CORRECTED->SetMarkerColor(kBlue);
+	h_Prague_DATA_CORRECTED->SetLineColor(kBlue);
+	h_Bham_DATA_CORRECTED->SetMarkerColor(kRed);
+	h_Bham_DATA_CORRECTED->SetLineColor(kRed);
+	h_Bham_DATA_UNCORRECTED->SetMarkerColor(kGray);
+	h_Bham_MC_PHO->SetLineColor(kRed+1);
+	h_Bham_MC_PY8->SetLineColor(kBlue+1);
+	h_Bham_MC_PY6->SetLineColor(kGreen+1);
+	h_Bham_MC_PHO->SetMarkerSize(0);
+	h_Bham_MC_PY8->SetMarkerSize(0);
+	h_Bham_MC_PY6->SetMarkerSize(0);
+	g_Bham_Systematics->SetFillStyle(3006);
+	g_Bham_Systematics->SetFillColor(kRed);
+	g_Bham_Systematics->SetMarkerColor(kRed);
+	g_Prague_Systematics->SetFillStyle(3007);
+	g_Prague_Systematics->SetFillColor(kBlue);
+	g_Prague_Systematics->SetMarkerColor(kBlue);
+
+	/// Draw
+	
+	TCanvas* comparison = new TCanvas("comparison");
+	comparison->UseCurrentStyle();
+	TPad* padTop = new TPad("p_top","Histo",0.,.3,1.,1.,/*color=*/0);
+	TPad* padBot = new TPad("p_bot","Ratio",0.,0.,1.,.3,/*color=*/0);
+	padTop->SetNumber(1);
+	padTop->SetLogy(log_on);
+	padTop->SetBottomMargin(0.);
+	padTop->Draw();
+	padBot->SetNumber(2);
+	padBot->SetTopMargin(0.);
+	padBot->SetBottomMargin(0.4); //2x0.05
+	padBot->Draw();
+
+	comparison->cd(1); //Top / Comparison
+
+	TH1D* DrawHist = h_Bham_MC_PHO;
+	DrawHist->GetXaxis()->SetTitle("Size of gap in #eta from |#eta| = 4.9");
+	DrawHist->GetYaxis()->SetTitle("\\frac{d#sigma}{d#eta}");
+	DrawHist->GetYaxis()->SetRangeUser(Ymin,Ymax);
+	h_Bham_MC_PHO->Draw("h");
+	h_Bham_MC_PY6->Draw("same h");
+	h_Bham_MC_PY8->Draw("same h");
+
+	h_Bham_DATA_CORRECTED->Draw("same p");
+	g_Bham_Systematics->Draw("same 3p");
+	h_Prague_DATA_CORRECTED->Draw("same p");
+	g_Prague_Systematics->Draw("same 3p");
+
+	TPave* hash = new TPave(7.,Ymin,DrawHist->GetXaxis()->GetXmax(),Ymax);
+	hash->SetBorderSize(0);
+	hash->SetFillStyle(3004);
+	hash->SetFillColor(1);
+	hash->Draw("same");
+
+	comparison->BuildLegend();
+
+	comparison->cd(2); //Bottom / Ratio
+
+	TH1D* DrawHist_Ratio = h_Ratio_DATA_CORRECTED;
+	DrawHist_Ratio->GetYaxis()->SetTitle("Ratio [MC/Data]");
+	DrawHist_Ratio->GetYaxis()->SetRangeUser(Ymin_Ratio,Ymax_Ratio);
+	DrawHist_Ratio->GetYaxis()->SetLabelSize(0.12); DrawHist_Ratio->GetYaxis()->SetLabelOffset(0.013);
+	DrawHist_Ratio->GetXaxis()->SetLabelSize(0.12); DrawHist_Ratio->GetXaxis()->SetLabelOffset(0.013);
+	DrawHist_Ratio->GetYaxis()->SetTitleSize(0.12); DrawHist_Ratio->GetYaxis()->SetTitleOffset(0.58);
+	DrawHist_Ratio->GetXaxis()->SetTitleSize(0.12); DrawHist_Ratio->GetXaxis()->SetTitleOffset(1.40);
+	DrawHist_Ratio->GetYaxis()->SetNdivisions(5,5,0,kTRUE);
+	
+	h_Ratio_DATA_CORRECTED->Draw("h");
+
+	hash = new TPave(7.,Ymin_Ratio,DrawHist->GetXaxis()->GetXmax(),Ymax_Ratio);
+	hash->SetBorderSize(0);
+	hash->SetFillStyle(3004);
+	hash->SetFillColor(1);
+	hash->Draw("same");
+
+	return;	
+}
