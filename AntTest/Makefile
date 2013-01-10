@@ -29,6 +29,5 @@ $(OBJDIR)/AtlasStyle.o:$(SRCDIR)/AtlasStyle.cxx $(INCDIR)/AtlasStyle.h
 $(OBJDIR)/AtlasUtils.o:$(SRCDIR)/AtlasUtils.cxx $(INCDIR)/AtlasUtils.h
 	$(CXX) -c $(CXXFLAGS) $< -o $@ $(ROOTINC) -I$(INCDIR)/
 
-
 clean: 
 	rm -vf  $(OBJDIR)/*.o $(BINDIR)/*.exe *~ $(SRCDIR)/*~ $(INCDIR)/*~
